@@ -27,7 +27,10 @@ export default function EmergencyPage() {
           id: doc.id,
           ...doc.data()
         }));
-        setProviders(list);
+        
+        // FIX 1: Sirf unhi providers ko filter karein jinka isEmergency == true hai
+        const emergencyOnly = list.filter(p => Boolean(p.isEmergency) === true);
+        setProviders(emergencyOnly);
       } catch (err) {
         console.error("Error fetching emergency providers:", err);
       } finally {
@@ -37,23 +40,27 @@ export default function EmergencyPage() {
     fetchEmergencyProviders();
   }, []);
 
-  // Filter & Strictly Limit to Top 2 Emergency Pros Only
+  // FIX 2: Flexible Category Matching (e.g. "tutor", "Home Tutor", "Tutor" sab match hongay)
   const filteredProviders = (activeTab === 'all'
     ? providers
-    : providers.filter(p => p.category?.toLowerCase() === activeTab.toLowerCase())
+    : providers.filter(p => {
+        const cat = p.category?.toLowerCase() || '';
+        const tab = activeTab.toLowerCase();
+        return cat.includes(tab) || tab.includes(cat);
+      })
   ).slice(0, 2);
 
-  // Helper function to get dynamic label based on category
   const getCategoryLabel = (category) => {
     switch (category?.toLowerCase()) {
       case 'tutor':
+      case 'home tutor':
         return 'Home Tutor';
       case 'painter':
         return 'Professional Painter';
       case 'carpenter':
         return 'Wood Carpenter';
       default:
-        return 'Emergency Expert';
+        return category || 'Emergency Expert';
     }
   };
 
@@ -77,11 +84,11 @@ export default function EmergencyPage() {
             Urgent Dispatch Specialists
           </h1>
           <p className="text-slate-400 text-xs sm:text-sm max-w-lg mx-auto">
-            Top 1-2 verified emergency responders available right now in Twin Cities.
+            Top verified emergency responders available right now in Twin Cities.
           </p>
         </div>
 
-        {/* 6 Category Filter Tabs */}
+        {/* Category Filter Tabs */}
         <div className="flex flex-wrap items-center justify-center gap-2">
           {EMERGENCY_TABS.map((tab) => (
             <button
@@ -99,7 +106,7 @@ export default function EmergencyPage() {
           ))}
         </div>
 
-        {/* Dynamic Category Count Header */}
+        {/* Dynamic Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
             SHOWING: <span className="text-rose-400 font-black">{filteredProviders.length} {getPluralLabel()}</span>
@@ -136,7 +143,7 @@ export default function EmergencyPage() {
                 {/* Dynamic Title */}
                 <div>
                   <h3 className="font-extrabold text-white text-lg">
-                    {p.businessName || p.fullName || getCategoryLabel(p.category)}
+                    {p.name || p.fullName || p.businessName || getCategoryLabel(p.category)}
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     👤 Registered {getCategoryLabel(p.category)}
@@ -147,7 +154,7 @@ export default function EmergencyPage() {
                 <div className="space-y-2 bg-slate-950 p-3.5 rounded-2xl border border-slate-800 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">📍 Location:</span>
-                    <span className="font-bold text-white">{p.sectorArea || p.sector || 'Twin Cities'}, {p.city || ''}</span>
+                    <span className="font-bold text-white">{p.sector || p.sectorArea || 'Twin Cities'}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">⚡ Response Time:</span>
@@ -155,11 +162,11 @@ export default function EmergencyPage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">💰 Est. Rate:</span>
-                    <span className="font-bold text-emerald-400">PKR {p.hourlyRate || '1000'}/hr</span>
+                    <span className="font-bold text-emerald-400">PKR {p.price || p.hourlyRate || '1000'}</span>
                   </div>
                 </div>
 
-                {/* Call Button */}
+                {/* WhatsApp Call Button */}
                 <a
                   href={`https://wa.me/${p.phone}?text=URGENT: I need immediate assistance via Khidmat App.`}
                   target="_blank"

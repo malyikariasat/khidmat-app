@@ -1,212 +1,247 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 export default function ProviderDashboard() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  
-  const [isAvailable, setIsAvailable] = useState(true);
-  const [urgencyStatus, setUrgencyStatus] = useState('Available Today');
-  const [name, setName] = useState('Imran Plumbing Services');
-  const [phone, setPhone] = useState('03001234567');
-  const [rate, setRate] = useState('800');
-  const [sector, setSector] = useState('G-9, Islamabad');
-  const [description, setDescription] = useState('Specialist in leak repair, geyser fitting and bathroom pipe work.');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [providerData, setProviderData] = useState(null);
+  const [docId, setDocId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const providerId = 'demo-provider-123';
-
-  useEffect(() => {
-    async function fetchProviderData() {
-      try {
-        const docRef = doc(db, 'providers', providerId);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setName(data.name || '');
-          setPhone(data.phone || '');
-          setRate(data.rate || '');
-          setSector(data.sector || 'G-9, Islamabad');
-          setDescription(data.description || '');
-          setIsAvailable(data.isAvailable ?? true);
-          setUrgencyStatus(data.urgencyStatus || 'Available Today');
-        }
-      } catch (err) {
-        console.error('Error fetching provider profile:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchProviderData();
-  }, []);
-
-  const handleSaveProfile = async (e) => {
+  // 1. Verify Provider by Phone
+  const handleVerifyPhone = async (e) => {
     e.preventDefault();
-    setSaving(true);
+    setLoading(true);
+    setError('');
 
     try {
-      const docRef = doc(db, 'providers', providerId);
-      await updateDoc(docRef, {
-        name,
-        phone,
-        rate,
-        sector,
-        description,
-        isAvailable,
-        urgencyStatus,
-        updatedAt: new Date().toISOString(),
+      const q = query(
+        collection(db, 'providers'),
+        where('phone', '==', phoneNumber.trim())
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        setError('Yeh phone number kisi provider record se match nahi hua.');
+        setLoading(false);
+        return;
+      }
+
+      querySnapshot.forEach((docSnap) => {
+        setDocId(docSnap.id);
+        const data = docSnap.data();
+        setProviderData({
+          ...data,
+          isAvailable: data.isAvailable ?? true,
+          isEmergency: data.isEmergency ?? false,
+          price: data.price || '',
+        });
       });
-      alert('Profile & Status updated successfully!');
     } catch (err) {
-      console.error('Update error:', err);
-      alert('Saved locally for demo!');
+      console.error(err);
+      setError('Database connection error.');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  if (loading) {
+  // 2. Update Profile Data
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setSuccess('');
+    setError('');
+
+    try {
+      const docRef = doc(db, 'providers', docId);
+      await updateDoc(docRef, {
+        name: providerData.name || '',
+        category: providerData.category || '',
+        sector: providerData.sector || '',
+        bio: providerData.bio || '',
+        price: providerData.price || '',
+        isAvailable: Boolean(providerData.isAvailable),
+        isEmergency: Boolean(providerData.isEmergency),
+      });
+      setSuccess('Profile aur Availability status successfully update ho gaye!');
+    } catch (err) {
+      console.error(err);
+      setError('Profile update nahi ho saki.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Phone Verification View
+  if (!providerData) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-sm font-bold">
-        ⚡ Loading Provider Control Panel...
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 className="text-xl font-bold mb-1">Provider Dashboard Login</h2>
+          <p className="text-xs text-slate-400 mb-6">
+            Apna status change karne ke liye registered phone number enter karein.
+          </p>
+
+          <form onSubmit={handleVerifyPhone} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold mb-1 text-slate-300">Phone Number</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. 03425553478"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {error && <p className="text-xs text-rose-500 font-medium">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-all"
+            >
+              {loading ? 'Checking...' : 'Login to Dashboard'}
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
 
+  // Dashboard Edit View
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 pb-20 font-sans">
-      <div className="max-w-4xl mx-auto px-5 py-10 space-y-8">
-        
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
+    <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-6 flex justify-center">
+      <div className="max-w-xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl h-fit">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
           <div>
-            <span className="text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-3 py-1 rounded-full uppercase tracking-wider">
-              Provider Dashboard
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-black text-white mt-2">Manage Profile & Availability</h1>
+            <h1 className="text-xl font-bold">Manage Profile & Status</h1>
+            <p className="text-xs text-slate-400">Phone: {providerData.phone}</p>
           </div>
-
-          <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 p-2.5 rounded-2xl">
-            <span className="text-xs font-bold text-slate-400">Live Status:</span>
-            <button
-              onClick={() => setIsAvailable(!isAvailable)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                isAvailable
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
-              }`}
-            >
-              {isAvailable ? '● Available Today' : '○ Busy / Unavailable'}
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              setProviderData(null);
+              setPhoneNumber('');
+            }}
+            className="text-xs text-slate-400 hover:text-white underline"
+          >
+            Logout
+          </button>
         </div>
 
-        {/* Dashboard Form */}
-        <form onSubmit={handleSaveProfile} className="bg-slate-900/90 border border-slate-800 p-6 sm:p-8 rounded-3xl space-y-6">
+        <form onSubmit={handleUpdate} className="space-y-5">
           
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Urgency Tag
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {['Available Today', 'Urgent — Right Now', 'Bookings Only', 'Offline'].map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setUrgencyStatus(status)}
-                  className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all ${
-                    urgencyStatus === status
-                      ? 'bg-amber-500 border-amber-500 text-slate-950 font-black'
-                      : 'border-slate-800 bg-slate-950/50 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
+          {/* Availability Status Toggles */}
+          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-white">Current Availability</p>
+                <p className="text-xs text-slate-400">Kya aap abhi kaam ke liye available hain?</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProviderData({ ...providerData, isAvailable: !providerData.isAvailable })}
+                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all ${
+                  providerData.isAvailable
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                }`}
+              >
+                {providerData.isAvailable ? '🟢 Available' : '🔴 Busy / Offline'}
+              </button>
+            </div>
+
+            <hr className="border-slate-800" />
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-white">Emergency Services</p>
+                <p className="text-xs text-slate-400">24/7 Emergency calls accept karein ga?</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProviderData({ ...providerData, isEmergency: !providerData.isEmergency })}
+                className={`px-4 py-1.5 rounded-full text-xs font-black transition-all ${
+                  providerData.isEmergency
+                    ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                }`}
+              >
+                {providerData.isEmergency ? '🚨 Active' : 'Disabled'}
+              </button>
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-                Service / Company Name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-sm focus:outline-none focus:border-emerald-500 text-white"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-                WhatsApp Phone Number
-              </label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-sm focus:outline-none focus:border-emerald-500 text-white"
-                required
-              />
-            </div>
+          {/* Form Fields */}
+          <div>
+            <label className="block text-xs font-semibold mb-1 text-slate-300">Name</label>
+            <input
+              type="text"
+              value={providerData.name || ''}
+              onChange={(e) => setProviderData({ ...providerData, name: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+            />
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-                Hourly Rate (PKR)
-              </label>
-              <input
-                type="number"
-                value={rate}
-                onChange={(e) => setRate(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-sm focus:outline-none focus:border-emerald-500 text-white"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-                Primary Sector / Area
-              </label>
+              <label className="block text-xs font-semibold mb-1 text-slate-300">Category</label>
               <input
                 type="text"
-                value={sector}
-                onChange={(e) => setSector(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-sm focus:outline-none focus:border-emerald-500 text-white"
-                required
+                value={providerData.category || ''}
+                onChange={(e) => setProviderData({ ...providerData, category: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1 text-slate-300">Sector / Location</label>
+              <input
+                type="text"
+                value={providerData.sector || ''}
+                onChange={(e) => setProviderData({ ...providerData, sector: e.target.value })}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-              Short Description
-            </label>
-            <textarea
-              rows="3"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-sm focus:outline-none focus:border-emerald-500 text-white resize-none"
-            ></textarea>
+            <label className="block text-xs font-semibold mb-1 text-slate-300">Visiting Charges / Rate (PKR)</label>
+            <input
+              type="text"
+              placeholder="e.g. 1000 / visit"
+              value={providerData.price || ''}
+              onChange={(e) => setProviderData({ ...providerData, price: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+            />
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1 text-slate-300">Bio / Details</label>
+            <textarea
+              rows={3}
+              value={providerData.bio || ''}
+              onChange={(e) => setProviderData({ ...providerData, bio: e.target.value })}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+            />
+          </div>
+
+          {error && <p className="text-xs text-rose-500">{error}</p>}
+          {success && <p className="text-xs text-emerald-400 font-semibold">{success}</p>}
 
           <button
             type="submit"
-            disabled={saving}
-            className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-2xl transition-all shadow-lg shadow-emerald-600/30 active:scale-[0.99] disabled:opacity-50"
+            disabled={loading}
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-all"
           >
-            {saving ? 'Saving Changes...' : 'Save & Update Availability'}
+            {loading ? 'Saving...' : 'Update Profile & Status'}
           </button>
         </form>
-
       </div>
-    </main>
+    </div>
   );
 }
