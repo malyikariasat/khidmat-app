@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --line: #c9c2ae;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #f1efe6;
+  color: #1a2e22;
+}
+
+/* Signature element: a faint sector grid, echoing Islamabad's own
+   planned-city grid (G-6, F-7, I-8...) used as background texture. */
+.sector-grid-bg {
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: -1px -1px;
+  opacity: 0.35;
+}
+
+.mono-tag {
+  font-family: var(--font-plex-mono), monospace;
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid #1f7a4d;
+  outline-offset: 2px;
+}
