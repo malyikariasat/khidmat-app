@@ -5,3 +5,7 @@ node_modules
 .vercel
 .DS_Store
 npm-debug.log*
+.env
+.env.development.local
+.env.test.local
+.env.production.local

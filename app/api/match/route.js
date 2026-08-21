@@ -2,48 +2,66 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req) {
   try {
-    const { category, sector, urgency, budgetMin, budgetMax, notes, providers } = await req.json();
-
+    const { category = '', sector = '', urgency = '', notes = '', providers = [] } = await req.json();
     const apiKey = process.env.GROQ_API_KEY;
 
-    // Direct Smart Fallback Matcher (Agar AI Key fail ho ya empty ho)
-    const runFallbackFilter = () => {
-      return providers.filter((p) => {
-        const pCategory = (p.category || '').toLowerCase();
-        const pSector = (p.sector || '').toLowerCase();
-        const pBio = (p.bio || '').toLowerCase();
-        
-        const qCategory = (category || '').toLowerCase();
-        const qSector = (sector || '').toLowerCase().split(',')[0]; // e.g., "G-9" from "G-9, Islamabad"
-        const qNotes = (notes || '').toLowerCase();
+    // Roman Urdu & Synonym Mapping Dictionary
+    const keywordMap = {
+      painter: ['paint', 'rang', 'painter', 'safaid', 'deewar', 'color'],
+      plumber: ['plumber', 'nal', 'pipe', 'leak', 'geyser', 'tank', 'tap', 'pani'],
+      electrician: ['electrician', 'bijli', 'wire', 'light', 'ups', 'breaker', 'fan', 'socket'],
+      'ac-repair': ['ac', 'fridge', 'cooling', 'gas', 'servicing', 'inverter', 'chiller'],
+      carpenter: ['carpenter', 'lakri', 'wood', 'door', 'darwaza', 'lock', 'khat', 'bed', 'table'],
+      tutor: ['tutor', 'teacher', 'padhana', 'math', 'study', 'parhai', 'school', 'sir']
+    };
 
-        const matchCategory = !qCategory || pCategory.includes(qCategory) || qNotes.includes(pCategory);
-        const matchSector = !qSector || pSector.includes(qSector);
-        
-        return matchCategory || matchSector;
+    // Smart Fallback Matcher
+    const runFallbackFilter = () => {
+      const userQuery = `${category} ${notes}`.toLowerCase().trim();
+      if (!userQuery) return [];
+
+      return providers.filter((p) => {
+        const pCat = (p.category || '').toLowerCase();
+        const pBio = (p.bio || '').toLowerCase();
+        const pName = (p.name || p.fullName || '').toLowerCase();
+
+        // Direct Text Match
+        const directMatch = pCat && userQuery.includes(pCat);
+
+        // Roman Urdu Mapping Match
+        let dictionaryMatch = false;
+        for (const [catKey, keywords] of Object.entries(keywordMap)) {
+          if (pCat.includes(catKey)) {
+            dictionaryMatch = keywords.some((kw) => userQuery.includes(kw));
+            if (dictionaryMatch) break;
+          }
+        }
+
+        return directMatch || dictionaryMatch;
       });
     };
 
+    // 1. If GROQ_API_KEY is not present, use Smart Local Fallback
     if (!apiKey) {
-      const fallbackResults = runFallbackFilter();
-      return NextResponse.json({ result: fallbackResults.slice(0, 3) });
+      console.warn('GROQ_API_KEY missing. Running Local Smart Roman-Urdu Matcher.');
+      return NextResponse.json({ result: runFallbackFilter().slice(0, 3) });
     }
 
-    const systemPrompt = `You are a local service matcher for Islamabad and Rawalpindi.
-Select maximum 3 best provider IDs from this list based on user query:
-${JSON.stringify(providers.map((p) => ({ id: p.id, name: p.name, category: p.category, sector: p.sector, rate: p.rateMin || p.hourlyRate, bio: p.bio })))}
+    // 2. Groq AI Engine Call
+    const systemPrompt = `You are an expert AI service matcher for Islamabad/Rawalpindi.
+Analyze the user query (which might be in Roman Urdu, Urdu, or English) and return strictly matching provider IDs.
 
-User Query Parameters:
-- Selected Category: "${category}"
-- Selected Sector: "${sector}"
-- Urgency Level: "${urgency}"
-- Budget Range: PKR ${budgetMin} to ${budgetMax}
-- Notes/Description: "${notes}"
+User Query: "${notes || category}"
+Location: "${sector}"
+
+Providers Available:
+${JSON.stringify(providers.map((p) => ({ id: p.id, name: p.name || p.fullName, category: p.category, bio: p.bio })))}
 
 Rules:
-1. Prioritize category and sector matches first.
-2. If notes mention another service (e.g., "tutor"), include matching categories.
-3. Return ONLY a valid JSON object strictly formatted as: {"recommendedIds": ["id1", "id2"]}`;
+1. "ghr paint krwana hai", "rang krna hai" -> Must match PAINTER.
+2. "nal kharab hai", "geyser" -> Must match PLUMBER.
+3. NEVER return Tutors for home maintenance requests.
+4. Return strictly valid JSON format: {"recommendedIds": ["id1", "id2"]}`;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -59,19 +77,18 @@ Rules:
     });
 
     const data = await response.json();
-    
+
     if (data?.choices?.[0]?.message?.content) {
       const parsed = JSON.parse(data.choices[0].message.content);
       const recommended = providers.filter((p) => parsed.recommendedIds?.includes(p.id));
-      
+
       if (recommended.length > 0) {
         return NextResponse.json({ result: recommended });
       }
     }
 
-    // AI Fallback execution if AI returns zero matched array
-    const fallbackResults = runFallbackFilter();
-    return NextResponse.json({ result: fallbackResults.slice(0, 3) });
+    // Fallback if AI gives 0 matches
+    return NextResponse.json({ result: runFallbackFilter().slice(0, 3) });
 
   } catch (err) {
     console.error('API Match Route Error:', err);
