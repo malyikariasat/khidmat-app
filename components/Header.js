@@ -26,7 +26,7 @@ export default function Header() {
           <Link href="/" className="px-4 py-1.5 text-xs font-bold rounded-full bg-slate-800 text-white hover:bg-slate-700 transition-all">
             Home
           </Link>
-          <Link href="/dashboard" className="px-4 py-1.5 text-xs font-bold rounded-full text-slate-400 hover:text-white transition-all">
+          <Link href="/provider/dashboard" className="px-4 py-1.5 text-xs font-bold rounded-full text-slate-400 hover:text-white transition-all">
             Dashboard
           </Link>
         </div>
@@ -34,7 +34,7 @@ export default function Header() {
         {/* Right Side Buttons */}
         <div className="flex items-center gap-2">
           <Link 
-            href="/join" 
+            href="/provider/register" 
             className="hidden sm:inline-flex px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-all"
           >
             + Join as Provider
@@ -48,7 +48,7 @@ export default function Header() {
             Emergency
           </Link>
 
-          {/* Mobile Menu Button (Hamburger) */}
+          {/* Mobile Menu Button */}
           <button 
             onClick={() => setIsOpen(!isOpen)}
             className="md:hidden p-2 text-slate-300 hover:text-white focus:outline-none text-xl"
@@ -70,14 +70,14 @@ export default function Header() {
             🏠 Home
           </Link>
           <Link 
-            href="/dashboard" 
+            href="/provider/dashboard" 
             onClick={() => setIsOpen(false)}
             className="block px-3 py-2 text-sm font-bold text-slate-200 hover:bg-slate-900 rounded-lg"
           >
             📊 Dashboard
           </Link>
           <Link 
-            href="/join" 
+            href="/provider/register" 
             onClick={() => setIsOpen(false)}
             className="block sm:hidden px-3 py-2 text-sm font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 rounded-lg"
           >
